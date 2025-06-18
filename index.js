@@ -1,37 +1,77 @@
-// index.js
+const API_KEY = 'dce204058927becc796d9cd2c7a7f8b7';
+const BASE    = 'https://api.openweathermap.org/data/2.5/weather';
 
-// Step 1: Fetch Data from the API
-// - Create a function `fetchWeatherData(city)`
-// - Use fetch() to retrieve data from the OpenWeather API
-// - Handle the API response and parse the JSON
-// - Log the data to the console for testing
+/* ---------- HELPERS ---------- */
+function toCelsius(rawTemp) {
+  // If the value looks like Kelvin (>120 K), convert; otherwise assume °C already.
+  return Math.round(rawTemp > 120 ? rawTemp - 273.15 : rawTemp);
+}
 
-// Step 2: Display Weather Data on the Page
-// - Create a function `displayWeather(data)`
-// - Dynamically update the DOM with weather details (e.g., temperature, humidity, weather description)
-// - Ensure the function can handle the data format provided by the API
+/* ---------- CORE FETCH ---------- */
+async function fetchWeatherData(city) {
+  if (!city) throw new Error('Please enter a city name');
 
-// Step 3: Handle User Input
-// - Add an event listener to the button to capture user input
-// - Retrieve the value from the input field
-// - Call `fetchWeatherData(city)` with the user-provided city name
+  const url = `${BASE}?q=${encodeURIComponent(city)}&units=metric&appid=${API_KEY}`;
 
-// Step 4: Implement Error Handling
-// - Create a function `displayError(message)`
-// - Handle invalid city names or network issues
-// - Dynamically display error messages in a dedicated section of the page
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('City not found');
+    return await res.json();
+  } catch (err) {
+    throw new Error(err.message || 'Network Error');
+  }
+}
 
-// Step 5: Optimize Code for Maintainability
-// - Refactor repetitive code into reusable functions
-// - Use async/await for better readability and to handle asynchronous operations
-// - Ensure all reusable functions are modular and clearly named
+/* ---------- DOM RENDERERS ---------- */
+function displayWeather(data) {
+  const weatherDisplay = document.getElementById('weather-display');
+  const errorDiv       = document.getElementById('error-message');
+  if (errorDiv) errorDiv.classList.add('hidden');
 
-// BONUS: Loading Indicator
-// - Optionally, add a loading spinner or text while the API request is in progress
+  const tempC = toCelsius(data.main.temp);
 
-// BONUS: Additional Features
-// - Explore adding more features, such as displaying additional weather details (e.g., wind speed, sunrise/sunset)
-// - Handle edge cases, such as empty input or API rate limits
+  weatherDisplay.innerHTML = `
+    <h2>${data.name}</h2>
+    <p><strong>Temperature:</strong> ${tempC}°C</p>
+    <p><strong>Humidity:</strong> ${data.main.humidity}%</p>
+    <p><strong>Condition:</strong> ${data.weather[0].description}</p>
+  `;
+}
 
-// Event Listener for Fetch Button
-// - Attach the main event listener to the button to start the process
+function displayError(message) {
+  const errorDiv = document.getElementById('error-message');
+  if (!errorDiv) return;
+  errorDiv.textContent = message;
+  errorDiv.classList.remove('hidden');
+}
+
+/* ---------- UI WIRING ---------- */
+document.addEventListener('DOMContentLoaded', () => {
+  const btn       = document.getElementById('fetch-weather');
+  const cityInput = document.getElementById('city-input');
+  const spinner   = document.getElementById('loading-spinner');
+
+  btn.addEventListener('click', async () => {
+    const city = cityInput.value.trim();
+    if (!city) {
+      displayError('Please enter a city name');
+      return;
+    }
+
+    if (spinner) spinner.style.display = 'block';
+
+    try {
+      const data = await fetchWeatherData(city);
+      displayWeather(data);
+    } catch (err) {
+      displayError(err.message);
+    } finally {
+      if (spinner) spinner.style.display = 'none';
+    }
+  });
+});
+
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { fetchWeatherData, displayWeather, displayError, toCelsius };
+}
